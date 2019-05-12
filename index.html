@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>INFO/CS3300 Project 2</title>
+    <link rel="stylesheet" type="text/css" href="style.css"/>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <!--Simple slider library api citation: https://www.npmjs.com/package/d3-simple-slider-->
+    <!--Simple slider library citation: https://unpkg.com/d3-simple-slider-->
+    <script src="libs/d3-simple-slider.min.js"></script> 
+    <script src="https://d3js.org/topojson.v2.min.js"></script>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js"></script> 
+</head>
+
+<body>
+    
+    <div class="row">
+        <div class="container">
+            <h1 id="title">How Do We Quantify Climate Change and Global Warming?</h1>
+            <h2>An exploration of the impacts of global warming on international temperatures and sea levels over time.</h2>
+            <p>Global warming has been represented in many different ways over the years. Some studies show increase in temperatures while others show increase in emissions. Being able to see the interaction between average yearly temperature per country, global sea level, and global carbon emissions would allow us to analyze what global warming and climate change has looked like over the years.</p>
+        </div>
+    </div>
+    <div class="clearfix"></div>
+
+    <div class="row">
+        
+        <!-- World Map -->
+        <div class="col-sm-7">
+            <div class="world_map"></div>
+            <div class="color_bar"></div>
+        </div>
+        <!-- Sea Level Line Graph -->
+        <div class="col-sm-3">
+            <div class="seaLevelSvg"></div>
+        </div>
+        <div class="sliderParent">
+            <div class="slider" id ="sliderDiv"></div>
+        </div>
+        <div class="clearfix"></div>
+    </div>
+
+    <script>
+
+        // NOTE: DATA source
+        //Sea level data from: https://datahub.io/core/sea-level-rise#readme
+        // NOTE: this website has example code for creating a map of the US w/ d3
+        //http://bl.ocks.org/michellechandra/0b2ce4923dc9b5809922 
+        
+        // **** SEA LEVEL LINE GRAPH ****
+        const requestData = async () =>{
+            const seaLevelData = await d3.csv("datasets/epa-sea-level.csv");
+            const world = await d3.json("datasets/world_110m_with_countries.json");
+            const emissionsData = await d3.csv("datasets/global_emissions.csv");
+            const temperatureData = await d3.csv("datasets/output.csv");
+
+            // fixing types in sea level data 
+            seaLevelData.forEach((d,i) =>{
+                d['CSIRO Adjusted Sea Level'] = Number(d['CSIRO Adjusted Sea Level']);
+                d['Lower Error Bound'] = Number(d['Lower Error Bound']);
+                d['NOAA Adjusted Sea Level'] = Number(d['NOAA Adjusted Sea Level']);
+                d['Upper Error Bound'] = Number(d['Upper Error Bound']);
+                d['Year'] = Number(d['Year']);
+            });
+
+            // fixing types in emissions data 
+            emissionsData.forEach((d,i) =>{
+                d['Year'] = Number(d['Year']);
+            })
+
+            // fixing types in temperature data 
+            temperatureData.forEach((d,i) =>{
+                d['avgTemp'] = Number(d['avgTemp']);
+            })
+
+            // Converting temperature data from array to map in order to reduce search time
+            var temperatureDataMap = temperatureData.reduce(function(map, object) {
+                                                                map[object.name] = object.avgTemp;
+                                                                return map;
+                                                             }, {});
+            
+            // **** SEA LEVEL SVG ****
+            let margin = { top: 0, right: 40, bottom: 30, left: 30 };
+            let container = $('.seaLevelSvg');
+            let width = container.width();
+            let height = 425;
+            let seaLevelSvg = d3.select('.seaLevelSvg').append('svg').attr('width', width).attr('height', height).attr("transform", 
+                "translate(" + 0 + "," + 40 + ")"
+            );
+
+            // scales
+            let yearScale = d3.scaleLinear().rangeRound([0, width-margin.right]).domain(d3.extent(seaLevelData, d => d['Year']));
+            let seaLevelScale = d3.scaleLinear().range([height, 0]).domain(d3.extent(seaLevelData, d => d['CSIRO Adjusted Sea Level']));
+            //create a grouping for axis
+            let fullGraph = seaLevelSvg.append("g").attr("transform", 
+                "translate(" + margin.left + "," + margin.top + ")"
+            );
+            // add x axis
+            fullGraph.append("g")
+            .attr("transform", "translate(0," + (height-20) + ")")
+            .call(d3.axisBottom(yearScale).tickFormat(d3.format("d")));
+            //add y axis
+            fullGraph.append("g")
+            .call(d3.axisLeft(seaLevelScale))
+            .append("text")
+            .attr("fill", "#000")
+            .attr('font-size', '1.5em')
+            .attr('font-family', 'Avenir')
+            .attr("transform", "rotate(-90)")
+            .attr("y", 20)
+            .attr("text-anchor", "end")
+            .text("Sea level in (inches)");
+            //create line path
+            let line = d3.line()
+            .x(d =>yearScale(d['Year']))
+            .y(d => seaLevelScale(d['CSIRO Adjusted Sea Level']));
+
+            // add area 
+            let area = d3.area()
+            .x(d => yearScale(d['Year']))
+            .y0(height)
+            .y1(d=> seaLevelScale(d['CSIRO Adjusted Sea Level']));
+
+            // add path to graph
+            fullGraph.append("path")
+            .datum(seaLevelData)
+            .attr("fill", "none")
+            .attr("stroke", "#2196F3")
+            .attr("stroke-width", 1.3)
+            .attr("d", line);
+            // took inspiration for tool tip at: https://bl.ocks.org/alandunning/cfb7dcd7951826b9eacd54f0647f48d3
+            let pointFocus = fullGraph.append("g").attr('class', 'focus').style('display','none');
+            pointFocus.append('line').attr('class', 'x-line hoverLine').attr('y1',0).attr('y2', height);
+            pointFocus.append('line').attr('class', 'y-line hoverLine').attr('x1',width).attr('x2', width);
+            pointFocus.append('line').attr('class', 'y-line hoverLine').attr('x1',width).attr('x2', width);
+            pointFocus.append('circle').attr('r', 4.5);
+            pointFocus.append('text');
+            //find the index given year (bisector)
+            bisectDate = d3.bisector(d=>  d['Year']).left;
+            //function to run when hover over line graph 
+
+            fullGraph.append("path")
+                     .data([seaLevelData])
+                     .attr("class", "area")
+                     .attr("d", area);
+
+            // This function allows the slider to move a tooltip across the sea level chart
+            function moveSeaLevelToolTip(inputYear) {
+                //get data to populate tooltip
+                let indexHover = bisectDate(seaLevelData, inputYear, 1);
+                let hoverData = seaLevelData[indexHover];
+                pointFocus.attr("transform", "translate(" + yearScale(hoverData['Year']) + "," + seaLevelScale(hoverData['CSIRO Adjusted Sea Level']) + ")");
+
+                //Adjust location of the tooltip to avoid the tooltip from getting cut off
+                if(inputYear > 1982){
+                    pointFocus.select("text").text( d => hoverData['CSIRO Adjusted Sea Level'].toFixed(2) + ' inches').attr('x', -130).attr('dy', '1em');
+                }else if(inputYear < 1899){
+                    pointFocus.select("text").text( d => hoverData['CSIRO Adjusted Sea Level'].toFixed(2) + ' inches').attr('x', -2).attr('dy', '-4em');
+                }else{
+                    pointFocus.select("text").text( d => hoverData['CSIRO Adjusted Sea Level'].toFixed(2) + ' inches').attr('x', 10).attr('dy', '2em');
+                }
+
+                pointFocus.select(".x-line").attr("y2", height - seaLevelScale(hoverData['CSIRO Adjusted Sea Level']));
+                pointFocus.select(".y-line").attr("x2", width + width);
+                pointFocus.style("display", null);
+
+                // Fill in the area under the sea level curve
+                d3.selectAll(".area").data([seaLevelData.slice(1, indexHover + 1)])
+                                     .attr("d", area);
+            }
+
+            //********* CARBON EMISSIONS TEXT ***********
+
+            // Create svg to hold carbon emission information
+            var emissionsText = d3.select('#sliderDiv')
+                                  .append('svg')
+                                  .attr('width', 1000)
+                                  .attr('height', 35)
+                                  .append('g')
+                                  .attr("id", "emissionLabel")
+                                  .attr('transform', 'translate(30,30)')
+                                  .append("text")
+                                  .attr("text-anchor", "middle")
+                                  .attr("x", "450");
+
+            // This function updates the global carbon emissions per year 
+            function emissions(inputYear){
+
+                // Scale that represents the font size of the carbon emissions text
+                // As the amount of carbon emissions increase, the text size should also increase
+                let emissionsTextScale = d3.scaleLinear().domain([238, 9773]).range([1,1.5]);
+
+                // get the carbon emissions data for the year that the slider is currently on
+                let indexEmissions = bisectDate(emissionsData, inputYear, 1);
+                emissionsDataForYear = emissionsData[indexEmissions];
+                emissionLevel = emissionsDataForYear['Total carbon emissions from fossil fuel consumption and cement production (million metric tons of C)'];
+                // Set the text to reflect the correct emission amount for the given year
+                d3.select('#emissionLabel').select("text")
+                  .attr('class', 'other-details')
+                  .text("Global Carbon Emissions in "+inputYear+": ")
+                  .append("tspan") // The tspan is added so that the animation can be added to the correct words in the text
+                  .text(+emissionLevel+" million metric tons")
+                  .attr('class', 'other-details2')
+                  .style('font-size', emissionsTextScale(emissionLevel).toString()+'em');
+            }
+
+            //********* WORLD MAP ***********
+            var countries = topojson.feature(world, world.objects.countries);
+            var mesh = topojson.mesh(world, world.objects.countries);
+                    
+            const map = d3.select("#world_map");
+            
+            container = $('.world_map');
+            width = container.width();
+            height = 450;
+
+            let worldMapContainer = d3.select('.col-sm-7').attr('transform', 'translate(100,0)');
+
+            // Construct the globe image
+            let world_map = d3.select('.world_map')
+                                .append('svg')
+                                .attr('width', width+10)
+                                .attr('height', height)
+                                .attr("transform", "translate(0,0)")
+                                
+                                //Zoom capabilities
+                                .attr("viewBox", "0 0 768 470")
+                                .classed("svg-content-responsive", true)
+                                .attr("preserveAspectRatio", "xMinYMin meet")
+                                // Set min and max zoom bounds and adjust zooming so that strokes maintain proportional size
+                                .call(d3.zoom().scaleExtent([1,10]).on("zoom", function () {
+                                    let zoomDepth = d3.event.transform;
+                                    d3.select(".outline")
+                                    .style("stroke-width", 1 / zoomDepth.k);
+                                    world_map.attr("transform", d3.event.transform)
+                                }))
+                                
+                                .append("g")
+                                .attr("transform", "translate(5,5)");
+            
+            var proj = d3.geoNaturalEarth1().fitSize([width, height], countries);
+            var path = d3.geoPath().projection(proj);
+            var graticule = d3.geoGraticule();
+
+            // Circle for zoom icon in top left corner of the map
+            world_map.append("circle")
+                     .attr('r', 6)
+                     .attr('cx', 6)
+                     .attr('cy', 6)
+                     .style('fill', 'ghostwhite')
+                     .style('stroke-width', '2px')
+                     .style('stroke', 'black')
+                     .on("mouseover", onZoom)
+                     .on("mouseout", outZoom);
+
+             // Line for zoom icon in top left corner of the map
+            world_map.append("path")
+                     .attr("d", "M 10 10 L 15 15 Z")
+                     .style('stroke-width', '1.5px')
+                     .style('stroke', 'black');
+
+            // Add graticule to the map
+            world_map.append("path")
+                     .attr("class", "graticule")
+                     .attr("d", path(d3.geoGraticule10()));
+
+            // Create map tooltip that shows country name and temperature information
+            // Inspiration for map tooltip came from: https://bl.ocks.org/tiffylou/88f58da4599c9b95232f5c89a6321992
+            var tooltip = d3.select("body")
+                .append("div") 
+                .attr("class", "tooltip")       
+                .style("opacity", 0);
+
+            world_map.selectAll("path").data(countries.features)
+                    .enter()
+                    .append("path")
+                    .attr("class", "country")
+                    .on("mouseover", onFunction)
+                    .on("mouseout", outFunction)
+                    .attr("d", path);
+
+            // When user hovers over a country, find the temperature for that country in the given year (year that the slide is on)
+            // Display a tooltip with country name and temperature
+            // Inspiration for map tooltip came from: https://bl.ocks.org/tiffylou/88f58da4599c9b95232f5c89a6321992
+            function onFunction(d) {
+                let tooltipData = "";
+                let rec = temperatureDataMap[d.properties.name+sliderYearVal.toString()];
+                // If temperature is found and is not null/0, then display the temperature
+                if(rec != undefined && rec != 0){
+                    tooltipData = d.properties.name+": "+temperatureDataMap[d.properties.name+sliderYearVal.toString()].toFixed(2)+"°C";
+                }
+                // If temperature is not found for a given year or given country, display N/A
+                else{
+                    tooltipData = d.properties.name+": N/A";
+                }
+                tooltip.transition()    
+                        .duration(300)
+                        .style("opacity", .9);    
+                tooltip.html(tooltipData)   
+                    .style("top", (d3.event.pageY - 30) + "px")
+                    .style("left", (d3.event.pageX) + "px");
+            };
+            
+            // Hide tooltip when mouse leaves a country
+            function outFunction() {
+                tooltip.transition()    
+                        .duration(300)    
+                        .style("opacity", 0);
+            }
+
+            // When the user hovers over the magnifying glass, show message about zooming and panning
+            function onZoom() {
+                let tooltipData = "Scroll over map to zoom and drag map to pan.";
+                tooltip.transition()    
+                        .duration(300)
+                        .style("opacity", .9);    
+                tooltip.html(tooltipData)   
+                    .style("top", (d3.event.pageY - 50) + "px")
+                    .style("left", (d3.event.pageX) + "px");
+            };
+            
+            // When the user hovers off the magnifying glass, hide message about zooming and panning
+            function outZoom(d) {
+                tooltip.transition()    
+                        .duration(300)    
+                        .style("opacity", 0);
+            }
+
+            // Add outline for each country on map
+            world_map.append("path")
+                    .datum(mesh)
+                    .attr("class","outline")
+                    .attr("d", path);
+
+            // Add globe outline to the map
+            world_map.append("path")
+                     .datum(graticule.outline)
+                     .attr("class", "graticuleOutline")
+                     .attr("d", path);
+
+            // Color scale that displays temperature difference based on temperature
+            const mapColorScale = d3.scaleLinear()
+                                    .domain([-20,5,30])
+                                    .range([ "blue", "yellow", "red"])
+                                    .interpolate(d3.interpolateHclLong)
+                                    .clamp(true);
+
+            // This function fills the map with color based on the year that the slider is on
+            function colorMap(year){
+
+                world_map.selectAll(".country")
+                     .style("fill", (d,i) => {
+                        var rec = temperatureDataMap[d.properties.name+year.toString()];
+                        if(rec != undefined && rec != 0){
+                            return mapColorScale(rec);
+                        }
+                        });
+            }
+
+            //Bar showing the color scale for the map
+            var tempRange = [-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30];
+
+            var boxWidth = 50;
+            var boxHeight = 15;
+
+            let color_bar = d3.select('.color_bar')
+
+            var g = color_bar.append('svg')
+                            .attr('width', width)
+                            .attr('height', 75)
+                            .append('g');
+
+            var xpos = 100;
+            var ypos = 25;
+
+            tempRange.forEach( (d,i) =>{
+
+                let rect = g.append('rect')
+                    .attr("width", boxWidth)
+                    .attr("height", boxHeight)
+                    .attr("x", xpos)
+                    .attr("y", ypos)
+                    .attr("fill", mapColorScale(d));
+
+                let temp = -20 + ((xpos - 100) / boxWidth) * 5;
+                let marg = 0;
+
+                if (temp == 0 || temp == 5){
+                    console.log("in 0");
+                    marg = 8;
+                }
+                else if (temp >= 10) {
+                    marg = temp / 5 + 2;
+                }
+
+                g.append('text')
+                    .attr("font-size", "14")
+                    .attr("color", "black")
+                    .text(function(d) {return temp.toString() + " °C"})
+                    .attr("x", xpos + 5 + marg)
+                    .attr("y", ypos + boxHeight + 20);
+
+                xpos += boxWidth;
+            });
+
+            // **** YEAR SLIDER ****
+            var sliderYearVal = 1880; //default slider value
+            // All code from this line until line 380 makes use of the d3-simple-slider library that has been 
+            // included at the top of this file. The time slider from the following tutorial/example was used as
+            // a reference when designing our slider: https://bl.ocks.org/johnwalley/e1d256b81e51da68f7feb632a53c3518
+            var sliderYear = d3.sliderBottom()
+                               .min(1880)
+                               .max(2013)
+                               .step(1)
+                               .width(900)
+                               .tickFormat(d3.format("d"))
+                               .default(1880)
+                               .on('onchange', val => { 
+                                  // Update sea level tooltip, map, and carbon emissions text
+                                  moveSeaLevelToolTip(val);
+                                  emissions(val);
+                                  colorMap(val);
+                                  sliderYearVal = val; //Update sliderYearVal variable
+                                });
+
+            var gSliderYear = d3.select('#sliderDiv')
+                                .append('svg')
+                                .attr('width', 1000)
+                                .attr('height', 100)
+                                .append('g')
+                                .attr('transform', 'translate(30,10)');
+
+            gSliderYear.call(sliderYear);
+
+            // Call these functions on start up so that the map, sea level tooltip, 
+            // and carbon emission data is populated based on the default value of the slider
+            moveSeaLevelToolTip(1880);
+            emissions(1880);
+            colorMap(1880);
+        }
+        requestData();
+
+    </script>
+     
+
+</body>
+</html>

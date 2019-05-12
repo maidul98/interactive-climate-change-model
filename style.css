@@ -1,0 +1,139 @@
+@import url(https://fonts.googleapis.com/css?family=Lato:900);
+
+*, *:before, *:after{
+    box-sizing:border-box;
+}
+
+body{
+    font-family: 'Avenir';
+    background-color: ghostwhite;
+}
+
+.col-sm-7{
+    width: 60%;
+    float: left;
+}
+
+.col-sm-3{
+    width: 40%;
+    float: right;
+}
+
+.sliderParent{
+    text-align: center;
+}
+
+.slider{
+    display: inline-block;
+    padding-top: 30px;
+}
+
+.clearfix::after {
+    content: "";
+    clear: both;
+    display: table;
+}
+
+.row{
+    width:100%;
+}
+
+.container{
+    width:950px;
+    margin: 0 auto;
+}
+
+#title {
+    text-align: center;
+    font-weight: 900;
+    font-size: 2em;
+    margin: 0.2em;
+    color: #e04622;
+}
+
+h2{
+    font-size: 1em;
+    text-align: center;
+}
+
+p{
+    font-size: 1em;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+/* map styling */
+
+.country {
+    fill: gray;
+    stroke: none;
+    opacity: 0.8
+}
+
+.outline {
+    stroke: black;
+    stroke-width: 1px;
+    fill: none;
+}
+
+.graticuleOutline {
+    stroke: black;
+    stroke-width: 1px;
+    fill: none;
+}
+
+.graticule{
+    fill: none;
+    stroke: lightgrey;
+}
+
+div.tooltip { 
+    position: absolute;     
+    text-align: center;     
+    width: 80px;          
+    /* height: 14px;          */
+    padding: 2px;       
+    font: 12px sans-serif;    
+    background: #fff; 
+    border: 0px;        
+    pointer-events: none;
+    font-family: 'Avenir';     
+}
+
+/* Line graph hover */
+
+.focus circle {
+  fill: #F1F3F3;
+  stroke:#2196f3;
+  stroke-width: 2px;
+}
+  
+.hoverLine {
+  stroke:#2196f3;
+  stroke-width: 2px;
+  stroke-dasharray: 3,3;
+}
+
+.area {
+    fill:#2196f3;
+    stroke-width: 0;
+    opacity: 0.5;
+}
+
+#hover-label{
+    color: red;
+}
+
+.other-details {
+    fill: #e04622;
+    font-size: 1.5em;
+}
+
+.other-details2 {
+    fill: #e04622;
+    font-size: 1em;
+}
+
+g{
+    font-family: 'Avenir';
+}
